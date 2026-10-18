@@ -192,7 +192,8 @@ class MultisportCog(commands.Cog, name="Multisport"):
                 "**Cycling**: `/cycling log`, `/cycling history`, `/cycling stats`\n"
                 "**Swimming**: `/swimming log`, `/swimming history`, `/swimming stats`\n"
                 "**All sports**: `/velocity dashboard`, `/velocity weekly`, "
-                "`/velocity records`, `/velocity leaderboard`, `/velocity proof`, "\n                "`/velocity profile`, `/velocity export`\n"
+                "`/velocity records`, `/velocity leaderboard`, `/velocity proof`, "
+                "`/velocity profile`, `/velocity export`\n"
                 "**Owner**: `/runs pending`, `/runs inspect`, `/runs review`"
             ),
             ui.Separator(),
