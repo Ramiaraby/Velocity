@@ -77,7 +77,7 @@ class RunningCog(commands.Cog, name="Running"):
 
         run_id = await self.bot.db.add_run(
             interaction.user.id, name, meters, seconds,
-            elevation_gain_m=elevation_m, location_name=place,
+            elevation_gain_m=elevation_m, guild_id=interaction.guild_id, location_name=place,
             location_status="found" if place else "not_provided",
         )
         proof_saved = False
@@ -162,14 +162,14 @@ class RunningCog(commands.Cog, name="Running"):
         stats = await self.bot.db.get_stats(interaction.user.id)
         await interaction.response.send_message(view=RunStatsView(stats), ephemeral=True)
 
-    @runs.command(name="pending", description="Owner only: see runs awaiting review")
+    @runs.command(name="pending", description="Owner only: see activities awaiting review")
     async def pending(self, interaction: discord.Interaction):
         if not await self.owner_guard(interaction):
             return
         runs = await self.bot.db.get_pending_runs(limit=10)
         await interaction.response.send_message(view=PendingRunsView(runs), ephemeral=True)
 
-    @runs.command(name="inspect", description="Owner only: inspect run and proof")
+    @runs.command(name="inspect", description="Owner only: inspect any sport and proof")
     @app_commands.describe(run_id="Run ID to inspect")
     async def inspect(self, interaction: discord.Interaction, run_id: int):
         if not await self.owner_guard(interaction):

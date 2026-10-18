@@ -6,6 +6,7 @@ import discord
 from discord import ui
 
 from bot.utils.evidence import validate_elevation
+from bot.utils.activity import activity_metric, SPORT_ICONS, SPORT_LABELS
 from bot.utils.location import LocationLookupError
 from bot.utils.running import calculate_pace, format_distance, format_duration, validate_run
 from classes.database import Database
@@ -21,11 +22,17 @@ def clean_text(value: str) -> str:
 
 
 def run_lines(run: dict) -> str:
+    sport = run.get("sport", "running")
     lines = [
-        f"🏃 **Distance:** {format_distance(run['distance'])}",
+        f"{SPORT_ICONS[sport]} **Sport:** {SPORT_LABELS[sport]}",
+        f"📍 **Distance:** {format_distance(run['distance'])}",
         f"⏱️ **Time:** {format_duration(run['duration'])}",
-        f"⚡ **Average pace:** {format_duration(calculate_pace(run['distance'], run['duration']))} /km",
+        f"⚡ **Performance:** {activity_metric(sport, run['distance'], run['duration'])}",
     ]
+    if run.get("swim_type"):
+        lines.append(f"🌊 **Water:** {run['swim_type'].replace('_', ' ')}")
+        if run.get("pool_length_m"):
+            lines.append(f"🏊 **Pool length:** {run['pool_length_m']} m")
     if run.get("elevation_gain_m") is not None:
         lines.append(f"⛰️ **Elevation gain:** {run['elevation_gain_m']} m")
     if run.get("location_name"):
@@ -196,7 +203,7 @@ class LogRunModal(ui.Modal, title="Log a run"):
             return
 
         run_id = await self.db.add_run(
-            interaction.user.id, name, meters, seconds, elevation_gain_m=elevation,
+            interaction.user.id, name, meters, seconds, guild_id=interaction.guild_id, elevation_gain_m=elevation,
             location_name=location, location_status="found" if location else "not_provided",
         )
         await interaction.followup.send(
@@ -290,7 +297,7 @@ class ReviewRunView(OwnedLayout):
         if run.get("moderation_note"):
             details += f"\n**Review note:** {clean_text(run['moderation_note'])[:200]}"
         components = [
-            ui.TextDisplay(f"## 🏁 Owner review | Run #{run['id']}"),
+            ui.TextDisplay(f"## 🏁 Owner review | Activity #{run['id']}"),
             ui.TextDisplay(f"**{clean_text(run['name'])}**"),
             ui.Separator(),
             ui.TextDisplay(details),
@@ -306,7 +313,7 @@ class PendingRunsView(ui.LayoutView):
     def __init__(self, runs: list[dict]):
         super().__init__(timeout=None)
         body = "\n\n".join(
-            f"**#{run['id']} {clean_text(run['name'])}** — runner <@{run['user_id']}>\n"
+            f"**#{run['id']} {SPORT_ICONS[run.get('sport', 'running')]} {clean_text(run['name'])}** — runner <@{run['user_id']}>\n"
             f"{format_distance(run['distance'])} • {format_duration(run['duration'])}"
             f" • {'🖼️ Evidence' if run.get('proof_message_id') else 'No image'}"
             for run in runs
