@@ -1,4 +1,4 @@
-# ⚡ Velocity
+# ⚡ Velocity — Multisport Discord Bot
 
 A Discord running tracker built with `discord.py`, async SQLite and Components V2 (`ui.LayoutView`).
 
@@ -67,3 +67,67 @@ The existing `runs` table is upgraded *in place* on startup using additive migra
 **Next:** build a shared `activities` model for **running, cycling and swimming**, with discipline-specific measurements and verified leaderboards. Cycling should track distance, duration, speed and optional climbing; swimming should track pool/open water, distance, duration and pace per 100m. Keep sports separate in rankings so a 5km swim is not compared with a 5km run.
 
 Run tests with `python -m unittest discover -s tests -v`.
+
+
+## Multisport update (v0.3)
+
+Velocity now tracks **running, cycling and swimming** in the same SQLite database. The old
+`runs` table is retained as the backing table, with new `sport`, `guild_id`,
+`swim_type`, `pool_length_m` and `notes` columns added automatically on startup.
+All previously recorded sessions remain **running** records. Existing `/runs`
+commands, run IDs, proof links and owner decisions are preserved.
+
+### Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/velocity dashboard` | Your interactive multisport home with Run, Cycle, Swim and Weekly buttons |
+| `/velocity weekly` | Last seven days' activities grouped by sport, private to you |
+| `/velocity records sport:` | Longest activity and fastest exact benchmark (5 km run, 20 km ride, 100 m swim) |
+| `/velocity leaderboard sport: period:` | Public, server-specific top ten by **verified distance** over 7 days, 30 days or all time |
+| `/velocity proof activity_id: image:` | Attach an optional private proof image to a pending activity |
+| `/velocity help` | Discord command guide |
+| `/cycling log` | Ride name, distance, duration, optional elevation, area, notes and proof |
+| `/cycling history` / `/cycling stats` | Cycling history and distance, time, average speed |
+| `/swimming log` | Pool or open-water swim; optional pool length, area, notes and proof |
+| `/swimming history` / `/swimming stats` | Swimming history, distance, time and average pace per 100 m |
+
+Open `/velocity dashboard` to create cycling or swimming activities through
+a five-field modal. Add photos afterward using `/velocity proof`.
+The original `/runs panel` and `/runs log` are still supported.
+
+### Data, safety and fairness
+
+- **Manual approval is required.** Every activity starts pending, and only
+  `OWNER_ID` can verify/reject via existing `/runs pending`, `/runs inspect`
+  and `/runs review` commands. These now handle **all sports**.
+- **Leaderboards count only verified activities logged in that Discord server.**
+  Historic runs without a server ID remain in your personal stats but are
+  not retroactively assigned to a guild leaderboard.
+- **Sport-specific rankings:** swimming meters are not compared with cycling
+  or running distances. Leaderboards rank verified total distance; personal
+  records use exact benchmark distance and fastest time.
+- **Discipline-specific metrics:** running min/km, cycling km/h, swimming min/100m.
+  Swimming supports `pool` / `open_water`, optional pool length and distance
+  checks; cycling supports optional climbing; all three support optional proof.
+- **Location lookup checks only that a city/area exists.** It does not validate a
+  GPS route or prove the athlete was there. No precise street addresses are
+  accepted. © OpenStreetMap contributors.
+- **Data privacy:** individual histories, personal stats and recaps are ephemeral.
+  Server leaderboards reveal users' *verified, aggregated* distances, and the
+  owner receives private evidence for review. Enable/use the bot only in servers
+  where members understand this.
+
+### Architecture
+
+- `bot/cogs/running.py` — backward-compatible running commands and owner reviews
+- `bot/cogs/multisport.py` — cycling, swimming and the `/velocity` command family
+- `bot/services/activities.py` — shared logging and proof-attachment pipeline
+- `bot/ui/activity.py` — Components V2 multisport dashboards, modals and pagination
+- `bot/utils/activity.py` — sport-specific validation and pace/speed metrics
+- `classes/database.py` — additive migration and sport-aware stats/leaderboard queries
+
+Install dependencies with `pip install -r requirements.txt`, update your environment
+using the existing instructions above, and run `python main.py`.
+Use `python -m unittest discover -s tests -v` to validate parsing, schema upgrades,
+user isolation, rankings and UI construction.

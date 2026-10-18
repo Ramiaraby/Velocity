@@ -26,7 +26,7 @@ def env_snowflake(name: str) -> int | None:
 
 
 class Bot(commands.Bot):
-    COGS = ("running",)
+    COGS = ("running", "multisport")
 
     def __init__(self):
         self.db = db
