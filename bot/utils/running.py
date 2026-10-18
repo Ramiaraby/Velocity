@@ -5,16 +5,13 @@ import re
 
 
 def to_meters(distance: str) -> int:
-    """Parse distances such as '5km', '5 k', and '750m'."""
     match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(km|k|m)\s*", distance.lower())
     if not match:
         raise ValueError("Distance must look like 5km or 1500m.")
-
     try:
         value = Decimal(match.group(1))
     except InvalidOperation as exc:
         raise ValueError("Invalid distance.") from exc
-
     meters = value * (1000 if match.group(2) in ("km", "k") else 1)
     if not meters.is_finite() or meters <= 0 or meters != meters.to_integral_value():
         raise ValueError("Distance must be a positive whole number of meters.")
@@ -22,15 +19,12 @@ def to_meters(distance: str) -> int:
 
 
 def to_seconds(duration: str) -> int:
-    """Parse MM:SS or HH:MM:SS. 75:00 is a valid MM:SS value."""
     parts = duration.strip().split(":")
     if len(parts) not in (2, 3) or not all(p.isascii() and p.isdigit() for p in parts):
         raise ValueError("Duration must be MM:SS or HH:MM:SS.")
-
     values = [int(part) for part in parts]
     if any(value >= 60 for value in values[1:]):
         raise ValueError("Seconds (and the minutes in HH:MM:SS) must be below 60.")
-
     seconds = sum(value * 60 ** i for i, value in enumerate(reversed(values)))
     if seconds <= 0:
         raise ValueError("Duration must be greater than zero.")
@@ -57,14 +51,12 @@ def validate_run(name: str, distance: str, duration: str) -> tuple[str, int, int
     name = name.strip()
     if not 1 <= len(name) <= 20:
         raise ValueError("Run name must be between 1 and 20 characters.")
-
     meters = to_meters(distance)
     seconds = to_seconds(duration)
     if meters < 1000:
         raise ValueError("Runs must be at least 1 km.")
     if meters > 1_000_000:
         raise ValueError("Distance is too large for a single run.")
-
     pace = seconds * 1000 / meters
     if not 126 <= pace <= 1200:
         raise ValueError("Check your distance and time: pace must be between 2:06 and 20:00 per km.")
