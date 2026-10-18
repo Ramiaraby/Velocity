@@ -154,13 +154,21 @@ class Database:
         await self.connection.commit()
         return updated
 
-    async def get_pending_runs(self, *, limit: int = 10) -> list[dict]:
+    async def get_pending_runs(self, *, limit: int = 10, offset: int = 0) -> list[dict]:
         assert self.connection is not None
         async with self.connection.execute(
             """SELECT * FROM runs WHERE verification_status = 'pending'
-               ORDER BY id DESC LIMIT ?""", (limit,)
+               ORDER BY id DESC LIMIT ? OFFSET ?""", (limit, offset)
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
+
+    async def count_pending_runs(self) -> int:
+        assert self.connection is not None
+        async with self.connection.execute(
+            "SELECT COUNT(*) FROM runs WHERE verification_status = 'pending'"
+        ) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0])
 
     async def get_cached_place(self, query: str) -> tuple[bool, str | None]:
         assert self.connection is not None
@@ -300,6 +308,24 @@ class Database:
             "longest": dict(longest) if longest else None,
             "fastest": dict(fastest) if fastest else None,
         }
+
+    async def update_activity_details(
+        self, activity_id: int, user_id: int, *,
+        location_name: str | None, location_status: str,
+        notes: str | None,
+    ) -> bool:
+        """Only an activity's owner can edit metadata before moderation."""
+        if notes is not None and len(notes) > 200:
+            raise ValueError("Notes may not exceed 200 characters.")
+        assert self.connection is not None
+        async with self.connection.execute(
+            """UPDATE runs SET location_name = ?, location_status = ?, notes = ?
+               WHERE id = ? AND user_id = ? AND verification_status = 'pending'""",
+            (location_name, location_status, notes, activity_id, user_id),
+        ) as cursor:
+            updated = cursor.rowcount == 1
+        await self.connection.commit()
+        return updated
 
     async def export_user_activities(self, user_id: int, *, limit: int = 10001) -> list[dict]:
         """Owner-scoped raw data export. An extra row signals truncation."""

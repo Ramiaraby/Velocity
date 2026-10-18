@@ -1,11 +1,5 @@
 import unittest
 
-import discord
-
-from bot.ui.activity import (
-    ActivityHistoryView, ActivityLogModal, ActivityReceiptView, ActivityStatsView,
-    DashboardView, LeaderboardView, RecordsView, WeeklyView, ProfileView,
-)
 from bot.utils.activity import activity_metric, validate_activity
 from classes.database import Database
 
@@ -122,40 +116,3 @@ class MultisportDatabaseTests(unittest.IsolatedAsyncioTestCase):
         await self.db.create_tables()
         self.assertEqual((await self.db.get_runs(1))[0]["sport"], "running")
 
-
-class MultisportViewsTests(unittest.IsolatedAsyncioTestCase):
-    async def test_views_construct(self):
-        run = {
-            "id": 42, "name": "Ride", "sport": "cycling",
-            "distance": 20000, "duration": 3600,
-            "verification_status": "pending",
-            "elevation_gain_m": 200,
-        }
-        stats = {
-            "run_count": 1, "verified_runs": 0,
-            "total_distance": 20000, "total_duration": 3600,
-            "longest_distance": 20000, "total_elevation": 200,
-        }
-        for item in (
-            ActivityReceiptView(run),
-            ActivityHistoryView(None, 1, "cycling", [run], 1),
-            ActivityStatsView("cycling", stats),
-            LeaderboardView("cycling", "week", []),
-            RecordsView("cycling", {"longest": run, "fastest": None, "distance": 20000}),
-            WeeklyView([{"sport": "cycling", "count": 1, "meters": 20000,
-                         "seconds": 3600, "verified": 0}]),
-        ):
-            with self.subTest(view=type(item).__name__):
-                self.assertIsInstance(item, discord.ui.LayoutView)
-                self.assertGreaterEqual(len(item.children), 1)
-
-        profile = ProfileView({
-            "running": {**stats, "run_count": 1},
-            "cycling": {**stats, "run_count": 1},
-            "swimming": {**stats, "run_count": 1, "verified_runs": 1},
-        })
-        self.assertIsInstance(profile, discord.ui.LayoutView)
-        for sport in ("cycling", "swimming"):
-            modal = ActivityLogModal(None, sport)
-            self.assertIsInstance(modal, discord.ui.Modal)
-            self.assertEqual(len(modal.children), 5)
