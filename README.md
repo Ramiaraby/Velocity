@@ -87,6 +87,8 @@ commands, run IDs, proof links and owner decisions are preserved.
 | `/velocity leaderboard sport: period:` | Public, server-specific top ten by **verified distance** over 7 days, 30 days or all time |
 | `/velocity proof activity_id: image:` | Attach an optional private proof image to a pending activity |
 | `/velocity help` | Discord command guide |
+| `/velocity profile` | Your private non-competitive milestones across sports |
+| `/velocity export` | Download your own activity history as a private CSV file |
 | `/cycling log` | Ride name, distance, duration, optional elevation, area, notes and proof |
 | `/cycling history` / `/cycling stats` | Cycling history and distance, time, average speed |
 | `/swimming log` | Pool or open-water swim; optional pool length, area, notes and proof |
@@ -131,3 +133,13 @@ Install dependencies with `pip install -r requirements.txt`, update your environ
 using the existing instructions above, and run `python main.py`.
 Use `python -m unittest discover -s tests -v` to validate parsing, schema upgrades,
 user isolation, rankings and UI construction.
+
+
+### Privacy and data portability
+
+Use `/velocity export` to receive a private CSV of up to 10,000 of your own
+activities, with sport, metrics, review status, coarse location and notes. The
+export does not expose proof-message IDs or other members' activities. The CSV
+is spreadsheet-safe for names and notes starting with formula characters.
+Your profile and achievements are private and celebrate variety, rather than
+requiring daily exercise or a fixed training load.

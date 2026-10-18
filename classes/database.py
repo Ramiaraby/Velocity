@@ -301,5 +301,18 @@ class Database:
             "fastest": dict(fastest) if fastest else None,
         }
 
+    async def export_user_activities(self, user_id: int, *, limit: int = 10001) -> list[dict]:
+        """Owner-scoped raw data export. An extra row signals truncation."""
+        assert self.connection is not None
+        async with self.connection.execute(
+            """SELECT id, sport, name, distance, duration, created_at,
+                      elevation_gain_m, location_name, location_status,
+                      swim_type, pool_length_m, notes, verification_status,
+                      verified_at, moderation_note
+               FROM runs WHERE user_id = ? ORDER BY id ASC LIMIT ?""",
+            (user_id, min(max(limit, 1), 10001)),
+        ) as cursor:
+            return [dict(row) for row in await cursor.fetchall()]
+
 
 db = Database()

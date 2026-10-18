@@ -30,10 +30,10 @@ class Bot(commands.Bot):
 
     def __init__(self):
         self.db = db
-        self.owner_id = env_snowflake("OWNER_ID")
+        configured_owner_id = env_snowflake("OWNER_ID")
         self.proof_channel_id = env_snowflake("PROOF_CHANNEL_ID")
         self.location_resolver = LocationResolver(self.db)
-        super().__init__(command_prefix="?", intents=discord.Intents.default())
+        super().__init__(command_prefix="?", intents=discord.Intents.default(), owner_id=configured_owner_id)
 
     async def setup_hook(self):
         await self.db.create_tables()

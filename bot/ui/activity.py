@@ -300,3 +300,38 @@ class DashboardView(OwnedLayout):
             DashboardButtons(bot, user_id),
             accent_colour=ACCENT,
         ))
+
+
+
+class ProfileView(ui.LayoutView):
+    """Private personal overview with encouraging, non-competitive badges."""
+
+    def __init__(self, stats: dict[str, dict]):
+        super().__init__(timeout=None)
+        total = sum(item["run_count"] for item in stats.values())
+        verified = sum(item["verified_runs"] for item in stats.values())
+        badge_lines = []
+        if total:
+            badge_lines.append("🌱 First Activity — Your first session is logged")
+        if stats["running"]["run_count"]:
+            badge_lines.append("🏃 Runner — You have running history")
+        if stats["cycling"]["run_count"]:
+            badge_lines.append("🚴 Rider — You have cycling history")
+        if stats["swimming"]["run_count"]:
+            badge_lines.append("🏊 Swimmer — You have swimming history")
+        if all(stats[s]["run_count"] for s in SPORT_LABELS):
+            badge_lines.append("🌈 Multisport Explorer — Tried all three sports")
+        if verified:
+            badge_lines.append("✅ Reviewed — At least one session verified by the owner")
+        if all(stats[s]["verified_runs"] for s in SPORT_LABELS):
+            badge_lines.append("🏅 Three-Sport Verified — One verified activity in each sport")
+        if not badge_lines:
+            badge_lines.append("Your first badge appears after you log an activity.")
+        self.add_item(ui.Container(
+            ui.TextDisplay("## ⚡ Velocity | Your profile"),
+            ui.TextDisplay(f"**{total} logged activities** · **{verified} owner-verified**"),
+            ui.Separator(),
+            ui.TextDisplay("### Your milestones\n" + "\n".join(badge_lines)),
+            ui.TextDisplay("Progress looks different for everyone. Recovery days count too."),
+            accent_colour=ACCENT,
+        ))
