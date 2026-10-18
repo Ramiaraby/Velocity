@@ -464,12 +464,15 @@ class HubView(ui.LayoutView):
 
     async def navigate(self, interaction, screen, *, sport=None, page=0,
                        period=None, activity_id=None):
+        # Acknowledge immediately so slow Discord attachment lookups do not
+        # expire the 3-second component interaction response window.
+        await interaction.response.defer()
         view = await HubView.build(
             self.bot, self.user_id, self.guild_id, screen=screen,
             sport=sport or self.sport, period=period or self.period,
             page=page, activity_id=activity_id
         )
-        await interaction.response.edit_message(view=view)
+        await interaction.edit_original_response(view=view)
 
     def nav(self):
         row = ui.ActionRow()

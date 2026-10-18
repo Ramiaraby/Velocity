@@ -17,6 +17,18 @@ class BotConfigTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bot.COGS, ("hub",))
         await bot.close()
 
+    async def test_only_one_slash_command_registered(self):
+        with patch.dict(os.environ, {"OWNER_ID": "123456789"}):
+            bot = Bot()
+        try:
+            await bot.load_extension("bot.cogs.hub")
+            self.assertEqual(
+                [command.name for command in bot.tree.get_commands()],
+                ["velocity"],
+            )
+        finally:
+            await bot.close()
+
     async def test_missing_owner_stays_none(self):
         with patch.dict(os.environ, {"OWNER_ID": ""}):
             bot = Bot()
