@@ -1,25 +1,41 @@
-from discord.ext import commands
-from classes.database import db
+"""Velocity Discord bot entry class."""
+
+import logging
+
 import discord
+from discord.ext import commands
+
+from classes.database import db
+
+logger = logging.getLogger(__name__)
+
 
 class Bot(commands.Bot):
+    COGS = ("running",)
+
     def __init__(self):
         self.db = db
-        super().__init__(command_prefix='?', intents=discord.Intents.default())
-
-    UNLOADED_COGS = ['running']
+        super().__init__(command_prefix="?", intents=discord.Intents.default())
 
     async def setup_hook(self):
         await self.db.create_tables()
-        print('Database Connected')
-        for cog_file in self.UNLOADED_COGS:
+        logger.info("Database connected")
+
+        for cog in self.COGS:
             try:
-                await self.load_extension(f'bot.cogs.{cog_file}')
-                self.UNLOADED_COGS.remove(cog_file)
-            except Exception as Error:
-                print(Exception)
+                await self.load_extension(f"bot.cogs.{cog}")
+            except commands.ExtensionError:
+                logger.exception("Failed to load cog: %s", cog)
+                raise
+
         await self.tree.sync()
-        print('Unloaded Cogs: ' + ', '.join(self.UNLOADED_COGS) if self.UNLOADED_COGS else 'All cogs loaded succesfully')
+        logger.info("Loaded %d cogs and synced application commands", len(self.COGS))
 
     async def on_ready(self):
-        print(f'Logged in as {self.user.name}')
+        logger.info("Logged in as %s", self.user)
+
+    async def close(self):
+        try:
+            await self.db.close()
+        finally:
+            await super().close()

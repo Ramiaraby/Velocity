@@ -1,7 +1,16 @@
-from bot.bot import Bot
-from dotenv import load_dotenv
+import logging
 import os
 
+from dotenv import load_dotenv
+
 load_dotenv()
-bot = Bot()
-bot.run(os.getenv('BOT_TOKEN'))
+
+from bot.bot import Bot
+
+logging.basicConfig(level=logging.INFO)
+
+token = os.getenv("BOT_TOKEN")
+if not token:
+    raise RuntimeError("Set BOT_TOKEN in your environment or .env file")
+
+Bot().run(token)
