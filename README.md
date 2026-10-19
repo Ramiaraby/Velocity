@@ -102,3 +102,56 @@ python -m unittest discover -s tests -v
 ```
 
 Automatic tests check the UI's construction, user isolation, database upgrades, permissions, validation, owner moderation and leaderboards. A manual live Discord server test is still required before deployment, especially for file-upload and button interactions.
+
+
+## 📊 Splits and pace tracking
+
+One `/velocity` dashboard handles all sports. Open any activity and tap
+**Splits** to enter times manually or extract intervals from a screenshot.
+
+- 🏃 Running: one interval per **1 km**, displayed in min/km.
+- 🚴 Cycling: one interval per **1 km**, displayed as interval time and km/h.
+- 🏊 Swimming: one interval per **100 m**, displayed in min/100m **not min/km**.
+
+Example (a three-kilometer run): `5:12`, `5:05`, `5:20`, one time per line.
+Splits can also be entered with consecutive numbers (`1 5:12`). For partial
+last intervals, enter their *actual* duration; the bot normalizes the displayed
+pace automatically. The total split time is checked against activity duration.
+Up to 100 intervals can be entered. Older activities remain intact.
+
+### Screenshot OCR
+
+**Splits → Read screenshot** accepts a cropped PNG/JPG screenshot of numbered
+splits. Tesseract OCR extracts candidate times **locally**. You must inspect
+the preview, then **Confirm splits**, **Edit times**, or **Discard**. OCR images
+are not uploaded to the proof channel or saved by the bot. Recognition may
+fail on complicated layouts; manual entry always remains available.
+
+Install optional system-level **Tesseract OCR** on the bot host (e.g.
+`sudo apt install tesseract-ocr` on Ubuntu, or install Tesseract on Windows
+and put it in PATH). `pytesseract` and `Pillow` are in requirements.txt.
+If Tesseract is missing, only screenshot recognition is unavailable.
+
+### Custom Discord emojis
+
+Upload emoji assets to a Discord server the bot can use, then set private
+environment values such as:
+
+```ini
+VELOCITY_EMOJI_RUNNING=<:runner:123456789012345678>
+VELOCITY_EMOJI_CYCLING=<:bike:234567890123456789>
+VELOCITY_EMOJI_SWIMMING=<:swim:345678901234567890>
+VELOCITY_EMOJI_SPLITS=<:splits:456789012345678901>
+VELOCITY_EMOJI_PROOF=<:camera:567890123456789012>
+VELOCITY_EMOJI_PACE=<:bolt:678901234567890123>
+```
+
+These IDs are **illustrative**, not actual emojis. Also supported:
+`VELOCITY_EMOJI_HOME`, `VELOCITY_EMOJI_RANKINGS`,
+`VELOCITY_EMOJI_PROFILE`, and `VELOCITY_EMOJI_REVIEW`.
+Unset/invalid slots fall back to standard emojis. Custom emojis must be
+accessible to the bot to display correctly.
+
+Splits are stored in a separate `activity_splits` table and cannot be
+modified after owner verification or rejection. Back up your existing SQLite
+database before upgrading.

@@ -4,8 +4,11 @@ The existing 'runs' table name is deliberately retained for lossless,
 additive migrations. Its 'sport' column distinguishes all three disciplines.
 """
 
+import asyncio
 import os
 from pathlib import Path
+
+from bot.utils.splits import validate_splits
 
 import aiosqlite
 
@@ -32,6 +35,7 @@ class Database:
     def __init__(self, path: str | None = None):
         self.path = path or os.getenv("DB_PATH", "memory/main.db")
         self.connection: aiosqlite.Connection | None = None
+        self._split_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         if self.connection is None:
@@ -39,6 +43,7 @@ class Database:
                 Path(self.path).parent.mkdir(parents=True, exist_ok=True)
             self.connection = await aiosqlite.connect(self.path)
             self.connection.row_factory = aiosqlite.Row
+            await self.connection.execute("PRAGMA foreign_keys=ON")
 
     async def close(self) -> None:
         if self.connection is not None:
@@ -63,6 +68,15 @@ class Database:
         for name, sql_type in ADDED_COLUMNS.items():
             if name not in columns:
                 await self.connection.execute(f"ALTER TABLE runs ADD COLUMN {name} {sql_type}")
+        await self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS activity_splits (
+                activity_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+                split_index INTEGER NOT NULL CHECK(split_index > 0),
+                segment_meters INTEGER NOT NULL CHECK(segment_meters > 0),
+                duration_seconds INTEGER NOT NULL CHECK(duration_seconds > 0),
+                PRIMARY KEY(activity_id, split_index)
+            )
+        """)
         await self.connection.execute("""
             CREATE TABLE IF NOT EXISTS place_cache (
                 query TEXT PRIMARY KEY,
@@ -140,19 +154,63 @@ class Database:
         await self.connection.commit()
         return updated
 
-    async def review_run(self, run_id: int, owner_id: int, status: str, note: str | None = None) -> bool:
+    async def review_run(self, run_id: int, owner_id: int, status: str,
+                         note: str | None = None) -> bool:
         if status not in {"verified", "rejected"}:
             raise ValueError("Invalid verification status.")
         assert self.connection is not None
-        async with self.connection.execute(
-            """UPDATE runs SET verification_status = ?, verified_by = ?,
-               verified_at = CURRENT_TIMESTAMP, moderation_note = ?
-               WHERE id = ? AND verification_status = 'pending'""",
-            (status, owner_id, note, run_id),
-        ) as cursor:
-            updated = cursor.rowcount == 1
-        await self.connection.commit()
+        # Split writes and owner review cannot race each other.
+        async with self._split_lock:
+            async with self.connection.execute(
+                """UPDATE runs SET verification_status = ?, verified_by = ?,
+                   verified_at = CURRENT_TIMESTAMP, moderation_note = ?
+                   WHERE id = ? AND verification_status = 'pending'""",
+                (status, owner_id, note, run_id),
+            ) as cursor:
+                updated = cursor.rowcount == 1
+            await self.connection.commit()
         return updated
+
+    async def save_activity_splits(
+        self, activity_id: int, user_id: int, split_seconds: list[int]
+    ) -> bool:
+        """Replace all splits only while the owner's activity is pending.
+
+        The list must account for the entire activity distance. Splits are
+        editable before review and become immutable after approval/rejection.
+        """
+        assert self.connection is not None
+        async with self._split_lock:
+            activity = await self.get_run(activity_id)
+            if not activity or activity["user_id"] != user_id or (
+                activity["verification_status"] != "pending"
+            ):
+                return False
+            segments = validate_splits(
+                activity["sport"], activity["distance"],
+                activity["duration"], split_seconds,
+            )
+            await self.connection.execute(
+                "DELETE FROM activity_splits WHERE activity_id = ?", (activity_id,)
+            )
+            await self.connection.executemany(
+                """INSERT INTO activity_splits
+                   (activity_id, split_index, segment_meters, duration_seconds)
+                   VALUES (?, ?, ?, ?)""",
+                [(activity_id, i, meters, seconds)
+                 for i, (meters, seconds) in enumerate(segments, start=1)],
+            )
+            await self.connection.commit()
+            return True
+
+    async def get_activity_splits(self, activity_id: int) -> list[dict]:
+        assert self.connection is not None
+        async with self.connection.execute(
+            """SELECT split_index, segment_meters, duration_seconds
+               FROM activity_splits WHERE activity_id = ?
+               ORDER BY split_index""", (activity_id,)
+        ) as cursor:
+            return [dict(row) for row in await cursor.fetchall()]
 
     async def get_pending_runs(self, *, limit: int = 10, offset: int = 0) -> list[dict]:
         assert self.connection is not None
