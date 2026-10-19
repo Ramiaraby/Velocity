@@ -1,4 +1,4 @@
-discord.py>=2.6,<3
+discord.py>=2.7.1,<2.8
 aiosqlite>=0.20,<1
 python-dotenv>=1.0,<2
 geopy>=2.4,<3
