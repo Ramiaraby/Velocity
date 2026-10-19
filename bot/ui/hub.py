@@ -9,7 +9,10 @@ from math import ceil
 import discord
 from discord import ui
 
-from bot.utils.activity import SPORT_ICONS, SPORT_LABELS, activity_metric, validate_activity
+from bot.utils.activity import SPORT_LABELS, activity_metric, validate_activity
+from bot.utils.emojis import emoji_for, emoji_text
+from bot.utils.splits import display_split
+from bot.ui.splits import ManualSplitsButton, OCRSplitsButton
 from bot.utils.running import format_distance, format_duration
 from bot.utils.evidence import save_private_proof, validate_proof, find_private_proof
 from bot.utils.location import LocationLookupError
@@ -31,7 +34,7 @@ def safe(text: str) -> str:
 
 
 def label_for(record: dict) -> str:
-    return f"{SPORT_ICONS[record['sport']]} {safe(record['name'])}"
+    return f"{emoji_text(record["sport"])} {safe(record['name'])}"
 
 
 def performance(record: dict) -> str:
@@ -69,7 +72,7 @@ class SportSelect(ui.Select):
         super().__init__(
             placeholder="Choose a sport",
             options=[
-                discord.SelectOption(label=SPORT_LABELS[s], value=s, emoji=SPORT_ICONS[s],
+                discord.SelectOption(label=SPORT_LABELS[s], value=s, emoji=emoji_for(s),
                                      default=hub.sport == s)
                 for s in SPORTS
             ],
@@ -107,7 +110,7 @@ class ActivitySelect(ui.Select):
                 discord.SelectOption(
                     label=f"#{r['id']} {r['name'][:50]}",
                     description=f"{format_distance(r['distance'])} • {STATES[r['verification_status']][:35]}",
-                    value=str(r["id"]), emoji=SPORT_ICONS[r["sport"]],
+                    value=str(r["id"]), emoji=emoji_for(r["sport"]),
                 )
                 for r in records
             ],
@@ -130,7 +133,7 @@ class LogButton(ui.Button):
 
 class ProofButton(ui.Button):
     def __init__(self, hub):
-        super().__init__(label="Add proof", emoji="📸", style=discord.ButtonStyle.primary)
+        super().__init__(label="Add proof", emoji=emoji_for("proof"), style=discord.ButtonStyle.primary)
         self.hub = hub
 
     async def callback(self, interaction: discord.Interaction):
@@ -213,7 +216,7 @@ class LogModal(ui.Modal):
     def __init__(self, hub):
         self.hub = hub
         sport = hub.sport
-        super().__init__(title=f"{SPORT_ICONS[sport]} Log {SPORT_LABELS[sport]}")
+        super().__init__(title=f"{emoji_text(sport)} Log {SPORT_LABELS[sport]}")
         self.name = ui.TextInput(placeholder="Morning session", max_length=20)
         self.distance = ui.TextInput(
             placeholder="5km, 20km or 1500m", max_length=20
@@ -421,12 +424,15 @@ class HubView(ui.LayoutView):
                     user_id, sport=sport, limit=PAGE_SIZE, offset=page * PAGE_SIZE
                 ),
             }
-        elif screen in ("detail", "review_detail"):
+        elif screen in ("detail", "review_detail", "splits"):
             payload = await db.get_run(activity_id) if activity_id is not None else None
-            if payload and screen == "detail" and payload["user_id"] != user_id:
+            if payload and screen in ("detail", "splits") and payload["user_id"] != user_id:
                 payload = None
             if screen == "review_detail" and user_id != bot.owner_id:
                 payload = None
+            if payload:
+                sport = payload["sport"]
+                payload["_splits"] = await db.get_activity_splits(payload["id"])
             if screen == "review_detail" and payload and user_id == bot.owner_id:
                 try:
                     proof_url, proof_link = await find_private_proof(bot, payload)
@@ -476,22 +482,22 @@ class HubView(ui.LayoutView):
 
     def nav(self):
         row = ui.ActionRow()
-        for name, emoji, screen in (
-            ("Home", "🏠", "home"),
-            ("Sports", "🏃", "sport"),
-            ("Rankings", "🏆", "rankings"),
-            ("Profile", "👤", "profile"),
+        for name, emoji_key, screen in (
+            ("Home", "home", "home"),
+            ("Sports", "running", "sport"),
+            ("Rankings", "rankings", "rankings"),
+            ("Profile", "profile", "profile"),
         ):
-            row.add_item(MoveButton(self, name, screen=screen, emoji=emoji))
+            row.add_item(MoveButton(self, name, screen=screen, emoji=emoji_for(emoji_key)))
         if self.owner:
-            row.add_item(MoveButton(self, "Review", screen="reviews", emoji="🛡️"))
+            row.add_item(MoveButton(self, "Review", screen="reviews", emoji=emoji_for("review")))
         return row
 
     def render(self):
         self.clear_items()
         self.add_item(ui.Container(
-            ui.TextDisplay("## ⚡ VELOCITY  ·  ACTIVITY HUB"),
-            ui.TextDisplay("Running  🏃  •  Cycling  🚴  •  Swimming  🏊"),
+            ui.TextDisplay(f"## {emoji_text('pace')} VELOCITY  ·  ACTIVITY HUB"),
+            ui.TextDisplay(f"Running {emoji_text('running')}  •  Cycling {emoji_text('cycling')}  •  Swimming {emoji_text('swimming')}"),
             self.nav(),
             accent_colour=HOME_COLOUR,
         ))
@@ -506,13 +512,13 @@ class HubView(ui.LayoutView):
                 *(
                     ui.Section(
                         ui.TextDisplay(
-                            f"### {SPORT_ICONS[s]} {SPORT_LABELS[s]}\n"
+                            f"### {emoji_text(s)} {SPORT_LABELS[s]}\n"
                             f"**{format_distance(stats[s]['total_distance'])}** overall"
                             f"  •  {stats[s]['run_count']} sessions  •  "
                             f"{stats[s]['verified_runs']} verified"
                         ),
                         accessory=MoveButton(self, "Open", screen="sport", sport=s,
-                                             emoji=SPORT_ICONS[s]),
+                                             emoji=emoji_for(s)),
                     ) for s in SPORTS
                 ),
                 accent_colour=HOME_COLOUR,
@@ -540,7 +546,7 @@ class HubView(ui.LayoutView):
             actions.add_item(MoveButton(self, "History", screen="history",
                                        emoji="📚", sport=self.sport))
             self.add_item(ui.Container(
-                ui.TextDisplay(f"## {SPORT_ICONS[self.sport]} {SPORT_LABELS[self.sport]}"),
+                ui.TextDisplay(f"## {emoji_text(self.sport)} {SPORT_LABELS[self.sport]}"),
                 ui.TextDisplay(body),
                 ui.Separator(),
                 actions,
@@ -598,12 +604,14 @@ class HubView(ui.LayoutView):
                 details.append(f"🏊 {r['pool_length_m']} m pool")
             if r.get("notes"):
                 details.append(f"📝 {safe(r['notes'])[:200]}")
+            splits = r.get("_splits", [])
+            details.append(f"{emoji_text('splits')} **Splits:** {len(splits)} intervals recorded")
             details.append("🖼️ Proof: " + ("Submitted privately" if r.get("proof_message_id")
                                           else "Not submitted"))
             if self.screen == "review_detail":
                 details.insert(1, f"Runner: <@{r['user_id']}>")
             content = [
-                ui.TextDisplay(f"## {SPORT_ICONS[sport]} Activity details"),
+                ui.TextDisplay(f"## {emoji_text(sport)} Activity details"),
                 ui.TextDisplay("\n".join(details)),
             ]
             actions = ui.ActionRow()
@@ -612,6 +620,9 @@ class HubView(ui.LayoutView):
                     if not r.get("proof_message_id"):
                         actions.add_item(ProofButton(self))
                     actions.add_item(DetailsButton(self))
+                actions.add_item(MoveButton(self, "Splits", screen="splits",
+                                            sport=sport, activity_id=r["id"],
+                                            emoji=emoji_for("splits")))
                 actions.add_item(MoveButton(self, "History", screen="history",
                                             sport=sport, emoji="↩️"))
             else:
@@ -626,6 +637,54 @@ class HubView(ui.LayoutView):
                 self.add_item(ui.MediaGallery(discord.MediaGalleryItem(
                     r["_proof_url"], description="Private evidence for owner review"
                 )))
+        elif self.screen == "splits":
+            r = self.payload
+            if not r:
+                self.add_item(ui.Container(
+                    ui.TextDisplay("Activity not found or inaccessible.")
+                ))
+                return
+            sport = r["sport"]
+            rows = r["_splits"]
+            per_page = 10
+            pages = max(1, ceil(len(rows) / per_page))
+            self.page = min(max(self.page, 0), pages - 1)
+            start = self.page * per_page
+            shown = rows[start:start + per_page]
+            unit = "100 m" if sport == "swimming" else "1 km"
+            items = [
+                f"**{row['split_index']}.**  {row['segment_meters']} m"
+                f"  ·  {display_split(sport, row['segment_meters'], row['duration_seconds'])}"
+                for row in shown
+            ]
+            controls = ui.ActionRow()
+            if r["verification_status"] == "pending":
+                controls.add_item(ManualSplitsButton(self))
+                controls.add_item(OCRSplitsButton(self))
+            controls.add_item(MoveButton(
+                self, "Details", screen="detail", sport=sport,
+                activity_id=r["id"], emoji="↩️"
+            ))
+            paging = ui.ActionRow()
+            prev = MoveButton(self, "Previous", screen="splits", sport=sport,
+                              page=max(0, self.page - 1), activity_id=r["id"], emoji="◀️")
+            prev.disabled = self.page == 0
+            nxt = MoveButton(self, "Next", screen="splits", sport=sport,
+                             page=min(pages - 1, self.page + 1), activity_id=r["id"], emoji="▶️")
+            nxt.disabled = self.page >= pages - 1
+            paging.add_item(prev)
+            paging.add_item(nxt)
+            self.add_item(ui.Container(
+                ui.TextDisplay(f"## {emoji_text('splits')} {SPORT_LABELS[sport]} splits"),
+                ui.TextDisplay(f"Each {unit} interval • Page {self.page + 1}/{pages}\n"
+                               f"{STATES[r['verification_status']]}"),
+                ui.Separator(),
+                ui.TextDisplay("\n".join(items) if items else
+                               "No split times saved. Enter them or scan a screenshot."),
+                controls,
+                paging,
+                accent_colour=ACCENTS[sport],
+            ))
         elif self.screen == "rankings":
             self.add_item(ui.Container(
                 ui.TextDisplay(f"## 🏆 {SPORT_LABELS[self.sport]} rankings"),
@@ -648,7 +707,7 @@ class HubView(ui.LayoutView):
             ))
         elif self.screen == "weekly":
             parts = [
-                f"{SPORT_ICONS[r['sport']]} **{SPORT_LABELS[r['sport']]}**"
+                f"{emoji_text(r["sport"])} **{SPORT_LABELS[r['sport']]}**"
                 f"  ·  {r['count']} sessions\n"
                 f"{format_distance(r['meters'])}  •  {format_duration(r['seconds'])}"
                 for r in self.payload
@@ -663,7 +722,7 @@ class HubView(ui.LayoutView):
             data = self.payload
             total = sum(data[s]["run_count"] for s in SPORTS)
             verified = sum(data[s]["verified_runs"] for s in SPORTS)
-            achieved = [f"{SPORT_ICONS[s]} {SPORT_LABELS[s]}: {data[s]['run_count']} sessions"
+            achieved = [f"{emoji_text(s)} {SPORT_LABELS[s]}: {data[s]['run_count']} sessions"
                         for s in SPORTS]
             if all(data[s]["run_count"] for s in SPORTS):
                 achieved.append("✨ Multisport explorer — activities in all three sports")
@@ -681,7 +740,7 @@ class HubView(ui.LayoutView):
             rows = self.payload["records"]
             pages = max(1, ceil(self.payload["total"] / PAGE_SIZE))
             text = "\n\n".join(
-                f"**#{r['id']}** {SPORT_ICONS[r['sport']]} {safe(r['name'])}\n"
+                f"**#{r['id']}** {emoji_text(r["sport"])} {safe(r['name'])}\n"
                 f"<@{r['user_id']}>  •  {performance(r)}"
                 f"  •  {'📸 Photo' if r.get('proof_message_id') else 'No photo'}"
                 for r in rows
@@ -713,7 +772,7 @@ class ReviewSelect(ui.Select):
                 discord.SelectOption(
                     label=f"#{r['id']} {r['name'][:60]}",
                     description=f"Runner {r['user_id']}",
-                    emoji=SPORT_ICONS[r["sport"]], value=str(r["id"])
+                    emoji=emoji_for(r["sport"]), value=str(r["id"])
                 ) for r in records
             ],
         )
