@@ -34,7 +34,7 @@ def safe(text: str) -> str:
 
 
 def label_for(record: dict) -> str:
-    return f"{emoji_text(record["sport"])} {safe(record['name'])}"
+    return f"{emoji_text(record['sport'])} {safe(record['name'])}"
 
 
 def performance(record: dict) -> str:
@@ -707,7 +707,7 @@ class HubView(ui.LayoutView):
             ))
         elif self.screen == "weekly":
             parts = [
-                f"{emoji_text(r["sport"])} **{SPORT_LABELS[r['sport']]}**"
+                f"{emoji_text(r['sport'])} **{SPORT_LABELS[r['sport']]}**"
                 f"  ·  {r['count']} sessions\n"
                 f"{format_distance(r['meters'])}  •  {format_duration(r['seconds'])}"
                 for r in self.payload
@@ -740,7 +740,7 @@ class HubView(ui.LayoutView):
             rows = self.payload["records"]
             pages = max(1, ceil(self.payload["total"] / PAGE_SIZE))
             text = "\n\n".join(
-                f"**#{r['id']}** {emoji_text(r["sport"])} {safe(r['name'])}\n"
+                f"**#{r['id']}** {emoji_text(r['sport'])} {safe(r['name'])}\n"
                 f"<@{r['user_id']}>  •  {performance(r)}"
                 f"  •  {'📸 Photo' if r.get('proof_message_id') else 'No photo'}"
                 for r in rows
